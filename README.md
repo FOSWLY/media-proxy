@@ -19,3 +19,5 @@ bun install
 ```bash
 bun start
 ```
+
+1. Если вы собираетесь использовать прокси сервер без https, не забудьте добавить `IS_SUPPORT_HTTPS=false` в .env файл
