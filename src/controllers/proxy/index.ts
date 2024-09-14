@@ -1,0 +1,156 @@
+import { Elysia } from "elysia";
+
+import mediaProxyModels from "../../models/proxy.model";
+import config from "../../config";
+import { InvalidMediaFile } from "../../errors";
+
+type VideoQuery = {
+  referer?: string;
+  origin?: string;
+  url: string;
+};
+
+interface M3U8Query extends VideoQuery {
+  all?: "yes";
+}
+
+type VideoQueryArgs = { query: VideoQuery };
+type M3U8QueryArgs = { query: M3U8Query; headers: Record<string, string> };
+
+const m3u8Prefix = "/v1/proxy/m3u8";
+
+function fixQueryArgs({ referer, origin, url }: VideoQuery, updateForM3U8 = false) {
+  url = decodeURIComponent(url);
+  // eslint-disable-next-line sonarjs/duplicates-in-character-class
+  if (updateForM3U8 && origin && /[^https:]\/\//.exec(url)) {
+    // for m3u8 only
+    const realPath = url.split("//")[2];
+    url = `${origin}/${realPath}`;
+  }
+
+  if (!/http(s)?:\/\//.exec(url)) {
+    url = `https://${url}`;
+  }
+
+  referer = decodeURIComponent(referer ?? "");
+  origin = decodeURIComponent(origin ?? "");
+  return {
+    referer,
+    origin,
+    url,
+  };
+}
+
+async function proxyVideo({ query }: VideoQueryArgs) {
+  const { referer, origin, url } = fixQueryArgs(query);
+  try {
+    const mediaUrl = new URL(url);
+    const response = await fetch(mediaUrl, {
+      headers: {
+        Referer: referer,
+        Origin: origin,
+        "User-Agent": config.userAgent,
+      },
+    });
+
+    if (!response.headers.get("Content-Type")?.includes("video/")) {
+      throw new Error("Unknown video format");
+    }
+
+    response.headers.delete("Access-Control-Allow-Origin");
+    return new Response(response.body, {
+      status: response.status,
+      headers: response.headers,
+    });
+  } catch (err: unknown) {
+    throw new InvalidMediaFile((err as Error)?.message);
+  }
+}
+
+async function proxyM3U8({ query, headers: { host } }: M3U8QueryArgs) {
+  // eslint-disable-next-line prefer-const
+  let { referer, origin, url } = fixQueryArgs(query, true);
+  const { all } = query;
+
+  try {
+    const mediaUrl = new URL(url);
+    const response = await fetch(mediaUrl, {
+      headers: {
+        Referer: referer,
+        Origin: origin,
+        "User-Agent": config.userAgent,
+      },
+    });
+
+    if (!url.includes(".m3u8")) {
+      if (!url.includes(".ts") && !response.headers.get("Content-Type")?.includes("video/")) {
+        throw new Error("Unknown video format");
+      }
+
+      return new Response(response.body, {
+        status: response.status,
+        headers: response.headers,
+      });
+    }
+
+    let modifiedM3u8 = await response.text();
+    // eslint-disable-next-line sonarjs/slow-regex
+    const targetFilename = url.replace(/([^/]+\.m3u8)/, "").trim();
+    const encodedTarget = encodeURIComponent(targetFilename);
+    const encodedUrl = encodeURIComponent(referer);
+    const encodedOrigin = encodeURIComponent(origin);
+    modifiedM3u8 = modifiedM3u8
+      .split("\n")
+      .map((line) => {
+        if (line.startsWith("#") || line.trim() == "") {
+          return line;
+        }
+
+        if (all && line.startsWith("http")) {
+          // https://yourproxy.com/?url=https://somevideo.m3u8&all=yes
+          const schema = config.server.isSupportHttps ? "https://" : "http://";
+          return `${schema}${host}${m3u8Prefix}?url=${line}`;
+        }
+
+        const originParam = origin ? `&origin=${encodedOrigin}` : "";
+        const refererParam = referer ? `&referer=${encodedUrl}` : "";
+        const allParam = all ? `&all=${all}` : "";
+        return `${m3u8Prefix}?url=${encodedTarget}${line}${originParam}${refererParam}${allParam}`;
+      })
+      .join("\n");
+
+    response.headers.delete("Access-Control-Allow-Origin");
+    return new Response(modifiedM3u8 ?? response.body, {
+      status: response.status,
+      headers: response.headers,
+    });
+  } catch (err: unknown) {
+    throw new InvalidMediaFile((err as Error)?.message);
+  }
+}
+
+export default new Elysia().group("/proxy", (app) =>
+  app
+    .use(mediaProxyModels)
+    .get("/video.mp4", proxyVideo, {
+      query: "mp4-proxy-model",
+      detail: {
+        summary: "Proxying a .mp4 video file",
+        tags: ["Proxy"],
+      },
+    })
+    .get("/video.webm", proxyVideo, {
+      query: "webm-proxy-model",
+      detail: {
+        summary: "Proxying a .webm video file",
+        tags: ["Proxy"],
+      },
+    })
+    .get("/m3u8", proxyM3U8, {
+      query: "m3u8-proxy-model",
+      detail: {
+        summary: "Proxying a .m3u8 stream",
+        tags: ["Proxy"],
+      },
+    }),
+);
