@@ -7,7 +7,7 @@ export default {
   server: {
     port: Bun.env.SERVICE_PORT ?? 3001,
     hostname: Bun.env.SERVICE_HOST ?? "0.0.0.0",
-    isSupportHttps: Bun.env.IS_SUPPORT_HTTPS === "true",
+    isSupportHttps: Bun.env.IS_SUPPORT_HTTPS ? Bun.env.IS_SUPPORT_HTTPS === "true" : true,
   },
   app: {
     name: Bun.env.APP_NAME ?? "[FOSWLY] Media proxy",
