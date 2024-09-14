@@ -20,6 +20,7 @@ const app = new Elysia({ prefix: "/v1" })
   .use(
     swagger({
       path: "/docs",
+      excludeStaticFile: false,
       documentation: {
         info: {
           title: config.app.name,
