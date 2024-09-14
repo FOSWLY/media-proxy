@@ -19,6 +19,14 @@ type M3U8QueryArgs = { query: M3U8Query; headers: Record<string, string> };
 
 const m3u8Prefix = "/v1/proxy/m3u8";
 
+const addScheme = (domain: string | undefined) => {
+  if (domain && !/http(s)?:\/\//.exec(domain)) {
+    domain = `https://${domain}`;
+  }
+
+  return domain;
+};
+
 function fixQueryArgs({ referer, origin, url }: VideoQuery, updateForM3U8 = false) {
   url = decodeURIComponent(url);
   // eslint-disable-next-line sonarjs/duplicates-in-character-class
@@ -28,12 +36,9 @@ function fixQueryArgs({ referer, origin, url }: VideoQuery, updateForM3U8 = fals
     url = `${origin}/${realPath}`;
   }
 
-  if (!/http(s)?:\/\//.exec(url)) {
-    url = `https://${url}`;
-  }
-
-  referer = decodeURIComponent(referer ?? "");
-  origin = decodeURIComponent(origin ?? "");
+  url = addScheme(url)!;
+  referer = decodeURIComponent(addScheme(referer) ?? "");
+  origin = decodeURIComponent(addScheme(origin) ?? "");
   return {
     referer,
     origin,
@@ -43,6 +48,7 @@ function fixQueryArgs({ referer, origin, url }: VideoQuery, updateForM3U8 = fals
 
 async function proxyVideo({ query }: VideoQueryArgs) {
   const { referer, origin, url } = fixQueryArgs(query);
+  console.log(referer, origin);
   try {
     const mediaUrl = new URL(url);
     const response = await fetch(mediaUrl, {
