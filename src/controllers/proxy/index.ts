@@ -2,7 +2,7 @@ import { Elysia } from "elysia";
 
 import mediaProxyModels from "../../models/proxy.model";
 import config from "../../config";
-import { InvalidMediaFile } from "../../errors";
+import { InvalidMediaFile, UnknownVideoFormat } from "../../errors";
 
 type VideoQuery = {
   referer?: string;
@@ -20,11 +20,26 @@ type M3U8QueryArgs = { query: M3U8Query; headers: Record<string, string> };
 const m3u8Prefix = "/v1/proxy/m3u8";
 
 const addScheme = (domain: string | undefined) => {
-  if (domain && !/http(s)?:\/\//.exec(domain)) {
-    domain = `https://${domain}`;
+  if (!domain || /http(s)?:\/\//.exec(domain)) {
+    return domain;
   }
 
-  return domain;
+  if (domain.includes("://")) {
+    domain = domain.split("://")?.[1];
+  }
+
+  return `https://${domain}`;
+};
+
+const getFetchOpts = (referer?: string, origin?: string) => {
+  return {
+    headers: {
+      Referer: referer,
+      Origin: origin,
+      "User-Agent": config.utility.userAgent,
+    },
+    redirect: "follow",
+  } as RequestInit;
 };
 
 function fixQueryArgs({ referer, origin, url }: VideoQuery, updateForM3U8 = false) {
@@ -46,31 +61,30 @@ function fixQueryArgs({ referer, origin, url }: VideoQuery, updateForM3U8 = fals
   };
 }
 
-async function proxyVideo({ query }: VideoQueryArgs) {
-  const { referer, origin, url } = fixQueryArgs(query);
-  console.log(referer, origin);
+async function fetchMedia(mediaUrl: URL, referer?: string, origin?: string) {
   try {
-    const mediaUrl = new URL(url);
-    const response = await fetch(mediaUrl, {
-      headers: {
-        Referer: referer,
-        Origin: origin,
-        "User-Agent": config.userAgent,
-      },
-    });
-
-    if (!response.headers.get("Content-Type")?.includes("video/")) {
-      throw new Error("Unknown video format");
-    }
-
-    response.headers.delete("Access-Control-Allow-Origin");
-    return new Response(response.body, {
-      status: response.status,
-      headers: response.headers,
-    });
-  } catch (err: unknown) {
+    return await fetch(mediaUrl, getFetchOpts(referer, origin));
+  } catch (err) {
     throw new InvalidMediaFile((err as Error)?.message);
   }
+}
+
+async function proxyVideo({ query }: VideoQueryArgs) {
+  const { referer, origin, url } = fixQueryArgs(query);
+  if (!URL.canParse(url)) {
+    throw new InvalidMediaFile("Unsupported URL");
+  }
+
+  const response = await fetchMedia(new URL(url), referer, origin);
+  if (!response.headers.get("Content-Type")?.includes("video/")) {
+    throw new UnknownVideoFormat();
+  }
+
+  response.headers.delete("Access-Control-Allow-Origin");
+  return new Response(response.body, {
+    status: response.status,
+    headers: response.headers,
+  });
 }
 
 async function proxyM3U8({ query, headers: { host } }: M3U8QueryArgs) {
@@ -78,61 +92,58 @@ async function proxyM3U8({ query, headers: { host } }: M3U8QueryArgs) {
   let { referer, origin, url } = fixQueryArgs(query, true);
   const { all } = query;
 
-  try {
-    const mediaUrl = new URL(url);
-    const response = await fetch(mediaUrl, {
-      headers: {
-        Referer: referer,
-        Origin: origin,
-        "User-Agent": config.userAgent,
-      },
-    });
+  if (!URL.canParse(url)) {
+    throw new InvalidMediaFile("Unsupported URL");
+  }
 
-    if (!url.includes(".m3u8")) {
-      if (!url.includes(".ts") && !response.headers.get("Content-Type")?.includes("video/")) {
-        throw new Error("Unknown video format");
-      }
+  const mediaUrl = new URL(url);
+  if (!mediaUrl.pathname.endsWith(".m3u8") && !mediaUrl.pathname.endsWith(".ts")) {
+    throw new UnknownVideoFormat();
+  }
 
-      return new Response(response.body, {
-        status: response.status,
-        headers: response.headers,
-      });
+  const response = await fetchMedia(mediaUrl, referer, origin);
+  if (!mediaUrl.pathname.endsWith(".m3u8")) {
+    if (!response.headers.get("Content-Type")?.includes("video/")) {
+      throw new UnknownVideoFormat();
     }
 
-    let modifiedM3u8 = await response.text();
-    // eslint-disable-next-line sonarjs/slow-regex
-    const targetFilename = url.replace(/([^/]+\.m3u8)/, "").trim();
-    const encodedTarget = encodeURIComponent(targetFilename);
-    const encodedUrl = encodeURIComponent(referer);
-    const encodedOrigin = encodeURIComponent(origin);
-    modifiedM3u8 = modifiedM3u8
-      .split("\n")
-      .map((line) => {
-        if (line.startsWith("#") || line.trim() == "") {
-          return line;
-        }
-
-        if (all && line.startsWith("http")) {
-          // https://yourproxy.com/?url=https://somevideo.m3u8&all=yes
-          const schema = config.server.isSupportHttps ? "https://" : "http://";
-          return `${schema}${host}${m3u8Prefix}?url=${line}`;
-        }
-
-        const originParam = origin ? `&origin=${encodedOrigin}` : "";
-        const refererParam = referer ? `&referer=${encodedUrl}` : "";
-        const allParam = all ? `&all=${all}` : "";
-        return `${m3u8Prefix}?url=${encodedTarget}${line}${originParam}${refererParam}${allParam}`;
-      })
-      .join("\n");
-
-    response.headers.delete("Access-Control-Allow-Origin");
-    return new Response(modifiedM3u8 ?? response.body, {
+    return new Response(response.body, {
       status: response.status,
       headers: response.headers,
     });
-  } catch (err: unknown) {
-    throw new InvalidMediaFile((err as Error)?.message);
   }
+
+  let modifiedM3u8 = await response.text();
+  // eslint-disable-next-line sonarjs/slow-regex
+  const targetFilename = url.replace(/([^/]+\.m3u8)/, "").trim();
+  const encodedTarget = encodeURIComponent(targetFilename);
+  const encodedUrl = encodeURIComponent(referer);
+  const encodedOrigin = encodeURIComponent(origin);
+  modifiedM3u8 = modifiedM3u8
+    .split("\n")
+    .map((line) => {
+      if (line.startsWith("#") || line.trim() == "") {
+        return line;
+      }
+
+      if (all && line.startsWith("http")) {
+        // https://yourproxy.com/?url=https://somevideo.m3u8&all=yes
+        const schema = config.server.isSupportHttps ? "https://" : "http://";
+        return `${schema}${host}${m3u8Prefix}?url=${line}`;
+      }
+
+      const originParam = origin ? `&origin=${encodedOrigin}` : "";
+      const refererParam = referer ? `&referer=${encodedUrl}` : "";
+      const allParam = all ? `&all=${all}` : "";
+      return `${m3u8Prefix}?url=${encodedTarget}${line}${originParam}${refererParam}${allParam}`;
+    })
+    .join("\n");
+
+  response.headers.delete("Access-Control-Allow-Origin");
+  return new Response(modifiedM3u8 ?? response.body, {
+    status: response.status,
+    headers: response.headers,
+  });
 }
 
 export default new Elysia().group("/proxy", (app) =>
