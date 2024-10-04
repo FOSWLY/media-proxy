@@ -1,24 +1,20 @@
 import path from "node:path";
-import { type Level } from "pino";
 
-import { version } from "../package.json";
+import { Value } from "@sinclair/typebox/value";
 
-export default {
+import { ConfigSchema, ConfigSchemaType } from "./schemas/config";
+import { DeepPartial } from "./types/utils";
+
+export default Value.Parse(ConfigSchema, {
   server: {
-    port: Bun.env.SERVICE_PORT ?? 3001,
-    hostname: Bun.env.SERVICE_HOST ?? "0.0.0.0",
-    isSupportHttps: Bun.env.IS_SUPPORT_HTTPS ? Bun.env.IS_SUPPORT_HTTPS === "true" : true,
+    port: Bun.env.SERVICE_PORT,
+    hostname: Bun.env.SERVICE_HOST,
+    isSupportHttps: Bun.env.IS_SUPPORT_HTTPS === "true",
   },
   app: {
-    name: Bun.env.APP_NAME ?? "[FOSWLY] Media proxy",
-    desc:
-      Bun.env.APP_DESC ??
-      "[FOSWLY] Media Proxy is a proxy server for proxying various video files.",
-    version,
-    license: "MIT",
-    github_url: "https://github.com/FOSWLY/media-proxy",
-    contact_email: Bun.env.APP_CONTACT_EMAIL ?? "me@toil.cc",
-    scalarCDN: "https://unpkg.com/@scalar/api-reference@1.15.1/dist/browser/standalone.js",
+    name: Bun.env.APP_NAME,
+    desc: Bun.env.APP_DESC,
+    contact_email: Bun.env.APP_CONTACT_EMAIL,
   },
   cors: {
     "Access-Control-Allow-Origin": "*",
@@ -27,15 +23,14 @@ export default {
     "Access-Control-Max-Age": "86400",
   },
   logging: {
-    level: (Bun.env.NODE_ENV === "production" ? "info" : "debug") as Level,
+    level: Bun.env.NODE_ENV === "production" ? "info" : "debug",
     logPath: path.join(__dirname, "..", "logs"),
     loki: {
-      host: Bun.env.LOKI_HOST ?? "",
-      user: Bun.env.LOKI_USER ?? "",
-      password: Bun.env.LOKI_PASSWORD ?? "",
-      label: Bun.env.LOKI_LABEL ?? "media-proxy",
+      host: Bun.env.LOKI_HOST,
+      user: Bun.env.LOKI_USER,
+      password: Bun.env.LOKI_PASSWORD,
+      label: Bun.env.LOKI_LABEL,
     },
   },
-  userAgent:
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 YaBrowser/24.7.0.0 Safari/537.36",
-};
+  utility: {},
+} as const satisfies DeepPartial<ConfigSchemaType>);
