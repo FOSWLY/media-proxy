@@ -9,7 +9,7 @@ import config from "./config";
 import healthController from "./controllers/health";
 import proxyController from "./controllers/proxy";
 import { log } from "./logging";
-import { InvalidMediaFile } from "./errors";
+import { InvalidMediaFile, UnknownVideoFormat } from "./errors";
 
 if (!fs.existsSync(config.logging.logPath)) {
   fs.mkdirSync(config.logging.logPath, { recursive: true });
@@ -21,6 +21,11 @@ const app = new Elysia({ prefix: "/v1" })
     swagger({
       path: "/docs",
       excludeStaticFile: false,
+      scalarConfig: {
+        spec: {
+          url: "/v1/docs/json",
+        },
+      },
       documentation: {
         info: {
           title: config.app.name,
@@ -45,7 +50,9 @@ const app = new Elysia({ prefix: "/v1" })
   })
   .error({
     INVALID_MEDIA_FILE: InvalidMediaFile,
+    UNKNOWN_MEDIA_FORMAT: UnknownVideoFormat,
   })
+  // eslint-disable-next-line sonarjs/function-return-type
   .onError(({ set, code, error, httpStatus }) => {
     switch (code) {
       case "NOT_FOUND":
@@ -55,9 +62,11 @@ const app = new Elysia({ prefix: "/v1" })
       case "VALIDATION":
         return error.all;
       case "INVALID_MEDIA_FILE":
+      case "UNKNOWN_MEDIA_FORMAT":
         set.status = httpStatus.HTTP_400_BAD_REQUEST;
         break;
     }
+
     return {
       error: error.message,
     };
