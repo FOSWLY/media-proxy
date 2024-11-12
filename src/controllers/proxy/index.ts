@@ -1,21 +1,10 @@
 import { Elysia } from "elysia";
 
-import mediaProxyModels from "../../models/proxy.model";
-import config from "../../config";
-import { InvalidMediaFile, UnknownVideoFormat } from "../../errors";
-
-type VideoQuery = {
-  referer?: string;
-  origin?: string;
-  url: string;
-};
-
-interface M3U8Query extends VideoQuery {
-  all?: "yes";
-}
-
-type VideoQueryArgs = { query: VideoQuery };
-type M3U8QueryArgs = { query: M3U8Query; headers: Record<string, string> };
+import mediaProxyModels from "@/models/proxy.model";
+import config from "@/config";
+import { InvalidMediaFile, UnknownVideoFormat } from "@/errors";
+import { M3U8QueryArgs, VideoQuery, VideoQueryArgs } from "@/types/proxy";
+import { log } from "@/logging";
 
 const m3u8Prefix = "/v1/proxy/m3u8";
 
@@ -42,9 +31,24 @@ const getFetchOpts = (referer?: string, origin?: string) => {
   } as RequestInit;
 };
 
-function fixQueryArgs({ referer, origin, url }: VideoQuery, updateForM3U8 = false) {
+function fixQueryArgs({ referer, origin, url, force, format }: VideoQuery, updateForM3U8 = false) {
+  if (format === "base64") {
+    try {
+      url = atob(url);
+    } catch (err) {
+      log.error({
+        format,
+        url,
+        force,
+        origin,
+        referer,
+        error: (err as Error).message,
+      });
+      throw new InvalidMediaFile("invalid base64-encoded URL");
+    }
+  }
+
   url = decodeURIComponent(url);
-  // eslint-disable-next-line sonarjs/duplicates-in-character-class
   if (updateForM3U8 && origin && /[^https:]\/\//.exec(url)) {
     // for m3u8 only
     const realPath = url.split("//")[2];
@@ -58,6 +62,7 @@ function fixQueryArgs({ referer, origin, url }: VideoQuery, updateForM3U8 = fals
     referer,
     origin,
     url,
+    force,
   };
 }
 
@@ -69,10 +74,14 @@ async function fetchMedia(mediaUrl: URL, referer?: string, origin?: string) {
   }
 }
 
-async function proxyVideo({ query }: VideoQueryArgs) {
-  const { referer, origin, url } = fixQueryArgs(query);
+async function proxyVideo(fileRegex: RegExp, { query }: VideoQueryArgs) {
+  const { referer, origin, url, force } = fixQueryArgs(query);
   if (!URL.canParse(url)) {
-    throw new InvalidMediaFile("Unsupported URL");
+    throw new InvalidMediaFile("unsupported URL");
+  }
+
+  if (!force && !fileRegex.test(url)) {
+    throw new InvalidMediaFile("unsupported URL");
   }
 
   const response = await fetchMedia(new URL(url), referer, origin);
@@ -93,7 +102,7 @@ async function proxyM3U8({ query, headers: { host } }: M3U8QueryArgs) {
   const { all } = query;
 
   if (!URL.canParse(url)) {
-    throw new InvalidMediaFile("Unsupported URL");
+    throw new InvalidMediaFile("unsupported URL");
   }
 
   const mediaUrl = new URL(url);
@@ -114,7 +123,6 @@ async function proxyM3U8({ query, headers: { host } }: M3U8QueryArgs) {
   }
 
   let modifiedM3u8 = await response.text();
-  // eslint-disable-next-line sonarjs/slow-regex
   const targetFilename = url.replace(/([^/]+\.m3u8)/, "").trim();
   const encodedTarget = encodeURIComponent(targetFilename);
   const encodedUrl = encodeURIComponent(referer);
@@ -149,14 +157,14 @@ async function proxyM3U8({ query, headers: { host } }: M3U8QueryArgs) {
 export default new Elysia().group("/proxy", (app) =>
   app
     .use(mediaProxyModels)
-    .get("/video.mp4", proxyVideo, {
+    .get("/video.mp4", async (ctx) => await proxyVideo(/\.mp4/, ctx), {
       query: "mp4-proxy-model",
       detail: {
         summary: "Proxying a .mp4 video file",
         tags: ["Proxy"],
       },
     })
-    .get("/video.webm", proxyVideo, {
+    .get("/video.webm", async (ctx) => await proxyVideo(/\.webm/, ctx), {
       query: "webm-proxy-model",
       detail: {
         summary: "Proxying a .webm video file",

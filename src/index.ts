@@ -52,7 +52,6 @@ const app = new Elysia({ prefix: "/v1" })
     INVALID_MEDIA_FILE: InvalidMediaFile,
     UNKNOWN_MEDIA_FORMAT: UnknownVideoFormat,
   })
-  // eslint-disable-next-line sonarjs/function-return-type
   .onError(({ set, code, error, httpStatus }) => {
     switch (code) {
       case "NOT_FOUND":
