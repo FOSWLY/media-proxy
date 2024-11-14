@@ -86,6 +86,14 @@ async function proxyVideo(fileRegex: RegExp, { query }: VideoQueryArgs) {
 
   const response = await fetchMedia(new URL(url), referer, origin);
   if (!response.headers.get("Content-Type")?.includes("video/")) {
+    log.warn(
+      {
+        url,
+        headers: response.headers,
+        status: response.status,
+      },
+      "Fetched media file with unknown video format",
+    );
     throw new UnknownVideoFormat();
   }
 

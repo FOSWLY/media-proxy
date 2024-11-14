@@ -1,3 +1,7 @@
+## 1.1.1
+
+- Added logging media file with unknown video format
+
 ## 1.1.0
 
 - Added `force` param to proxy a link, even if it doesn't meet the criteria (the link should still be parsed through the URL.canParse)
