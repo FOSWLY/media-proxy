@@ -15,7 +15,7 @@
     "pino-pretty": "^13.0.0"
   },
   "devDependencies": {
-    "@sinclair/typebox": "^0.33.22",
+    "@sinclair/typebox": "^0.34.3",
     "@types/eslint__js": "^8.42.3",
     "@typescript-eslint/eslint-plugin": "^8.14.0",
     "@typescript-eslint/parser": "^8.14.0",
