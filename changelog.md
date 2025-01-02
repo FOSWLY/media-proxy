@@ -1,3 +1,9 @@
+## 1.1.2
+
+- Added option to disable save logs to file
+- Removed decode url for base64 format
+- Updated depends
+
 ## 1.1.1
 
 - Added logging media file with unknown video format
