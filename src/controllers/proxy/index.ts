@@ -46,9 +46,10 @@ function fixQueryArgs({ referer, origin, url, force, format }: VideoQuery, updat
       });
       throw new InvalidMediaFile("invalid base64-encoded URL");
     }
+  } else {
+    url = decodeURIComponent(url);
   }
 
-  url = decodeURIComponent(url);
   if (updateForM3U8 && origin && /[^https:]\/\//.exec(url)) {
     // for m3u8 only
     const realPath = url.split("//")[2];
