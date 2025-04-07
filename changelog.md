@@ -1,3 +1,9 @@
+## 1.1.3
+
+- Added support base64-encoded `headers` query param for mp4/webm video proxying
+- Removed duplicated `Date` header for mp4/webm video proxying
+- Lib `pino` replaced with `@vaylo/pino`
+
 ## 1.1.2
 
 - Added option to disable save logs to file
