@@ -2,19 +2,12 @@ import { Elysia } from "elysia";
 import { HttpStatusCode } from "elysia-http-status-code";
 import { swagger } from "@elysiajs/swagger";
 
-import * as fs from "fs";
-
 import config from "./config";
 
 import healthController from "./controllers/health";
 import proxyController from "./controllers/proxy";
 import { log } from "./logging";
 import { InvalidMediaFile, UnknownVideoFormat } from "./errors";
-
-if (!fs.existsSync(config.logging.logPath)) {
-  fs.mkdirSync(config.logging.logPath, { recursive: true });
-  log.info(`Created log directory`);
-}
 
 const app = new Elysia({ prefix: "/v1" })
   .use(
@@ -67,7 +60,7 @@ const app = new Elysia({ prefix: "/v1" })
     }
 
     return {
-      error: error.message,
+      error: (error as Error).message,
     };
   })
   .use(healthController)
