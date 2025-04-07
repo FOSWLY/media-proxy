@@ -20,18 +20,22 @@ const addScheme = (domain: string | undefined) => {
   return `https://${domain}`;
 };
 
-const getFetchOpts = (referer?: string, origin?: string) => {
+const getFetchOpts = (headers: Record<string, unknown> = {}, referer?: string, origin?: string) => {
   return {
     headers: {
       Referer: referer,
       Origin: origin,
       "User-Agent": config.utility.userAgent,
+      ...headers,
     },
     redirect: "follow",
   } as RequestInit;
 };
 
-function fixQueryArgs({ referer, origin, url, force, format }: VideoQuery, updateForM3U8 = false) {
+function fixQueryArgs(
+  { referer, origin, url, force, format, headers }: VideoQuery,
+  updateForM3U8 = false,
+) {
   if (format === "base64") {
     try {
       url = atob(url);
@@ -56,6 +60,31 @@ function fixQueryArgs({ referer, origin, url, force, format }: VideoQuery, updat
     url = `${origin}/${realPath}`;
   }
 
+  let headersData = {};
+  if (headers) {
+    try {
+      const parsedHeaders = JSON.parse(atob(headers)) as
+        | Record<string, unknown>
+        | string
+        | unknown[];
+      if (
+        typeof parsedHeaders === "object" &&
+        !Array.isArray(parsedHeaders) &&
+        parsedHeaders !== null
+      ) {
+        headersData = parsedHeaders;
+      }
+    } catch (err) {
+      log.debug(
+        {
+          headers,
+          error: (err as Error).message,
+        },
+        "Failed to parse headers",
+      );
+    }
+  }
+
   url = addScheme(url)!;
   referer = decodeURIComponent(addScheme(referer) ?? "");
   origin = decodeURIComponent(addScheme(origin) ?? "");
@@ -64,19 +93,25 @@ function fixQueryArgs({ referer, origin, url, force, format }: VideoQuery, updat
     origin,
     url,
     force,
+    headers: headersData,
   };
 }
 
-async function fetchMedia(mediaUrl: URL, referer?: string, origin?: string) {
+async function fetchMedia(
+  mediaUrl: URL,
+  referer?: string,
+  origin?: string,
+  headers?: Record<string, unknown>,
+) {
   try {
-    return await fetch(mediaUrl, getFetchOpts(referer, origin));
+    return await fetch(mediaUrl, getFetchOpts(headers, referer, origin));
   } catch (err) {
     throw new InvalidMediaFile((err as Error)?.message);
   }
 }
 
 async function proxyVideo(fileRegex: RegExp, { query }: VideoQueryArgs) {
-  const { referer, origin, url, force } = fixQueryArgs(query);
+  const { referer, origin, url, force, headers } = fixQueryArgs(query);
   if (!URL.canParse(url)) {
     throw new InvalidMediaFile("unsupported URL");
   }
@@ -85,7 +120,7 @@ async function proxyVideo(fileRegex: RegExp, { query }: VideoQueryArgs) {
     throw new InvalidMediaFile("unsupported URL");
   }
 
-  const response = await fetchMedia(new URL(url), referer, origin);
+  const response = await fetchMedia(new URL(url), referer, origin, headers);
   if (!response.headers.get("Content-Type")?.includes("video/")) {
     log.warn(
       {
@@ -99,6 +134,7 @@ async function proxyVideo(fileRegex: RegExp, { query }: VideoQueryArgs) {
   }
 
   response.headers.delete("Access-Control-Allow-Origin");
+  response.headers.delete("Date");
   return new Response(response.body, {
     status: response.status,
     headers: response.headers,

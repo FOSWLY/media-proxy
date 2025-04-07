@@ -3,6 +3,7 @@ export type VideoQuery = {
   origin?: string;
   force?: boolean;
   format?: "base64" | "url";
+  headers?: string;
   url: string;
 };
 
