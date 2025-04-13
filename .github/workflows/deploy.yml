@@ -10,7 +10,6 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
       - name: Configure SSH 🔧
         run: |
           mkdir -p ~/.ssh
@@ -19,4 +18,4 @@ jobs:
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
       - name: Connect and deploy 🔧
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "export GITHUB_REPOSITORY=${{ github.repository }} && ./media-proxy-deploy.sh && exit"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "export GITHUB_REPOSITORY=${{ github.repository }} && sudo ./media-proxy-deploy.sh && exit"
