@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { HttpStatusCode } from "elysia-http-status-code";
 import { swagger } from "@elysiajs/swagger";
+import { cors } from "@elysiajs/cors";
 
 import config from "./config";
 
@@ -36,11 +37,7 @@ const app = new Elysia({ prefix: "/v1" })
     }),
   )
   .use(HttpStatusCode())
-  .onRequest(({ set }) => {
-    for (const [key, val] of Object.entries(config.cors)) {
-      set.headers[key] = val;
-    }
-  })
+  .use(cors(config.cors))
   .error({
     INVALID_MEDIA_FILE: InvalidMediaFile,
     UNKNOWN_MEDIA_FORMAT: UnknownVideoFormat,

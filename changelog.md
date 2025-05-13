@@ -1,3 +1,9 @@
+## 1.1.4
+
+- Fixed merge cors headers with headers from original response
+- Migrated to `@elysiajs/cors`
+- Bump depends
+
 ## 1.1.3
 
 - Added support base64-encoded `headers` query param for mp4/webm video proxying

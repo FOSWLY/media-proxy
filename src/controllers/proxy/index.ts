@@ -8,6 +8,14 @@ import { log } from "@/logging";
 
 const m3u8Prefix = "/v1/proxy/m3u8";
 
+const removableHeaders = [
+  "access-control-allow-origin",
+  "access-control-allow-headers",
+  "access-control-allow-credentials",
+  "access-control-allow-methods",
+  "date",
+];
+
 const addScheme = (domain: string | undefined) => {
   if (!domain || /http(s)?:\/\//.exec(domain)) {
     return domain;
@@ -133,8 +141,9 @@ async function proxyVideo(fileRegex: RegExp, { query }: VideoQueryArgs) {
     throw new UnknownVideoFormat();
   }
 
-  response.headers.delete("Access-Control-Allow-Origin");
-  response.headers.delete("Date");
+  for (const header of removableHeaders) {
+    response.headers.delete(header);
+  }
   return new Response(response.body, {
     status: response.status,
     headers: response.headers,
@@ -156,6 +165,10 @@ async function proxyM3U8({ query, headers: { host } }: M3U8QueryArgs) {
   }
 
   const response = await fetchMedia(mediaUrl, referer, origin);
+  for (const header of removableHeaders) {
+    response.headers.delete(header);
+  }
+
   if (!mediaUrl.pathname.endsWith(".m3u8")) {
     if (!response.headers.get("Content-Type")?.includes("video/")) {
       throw new UnknownVideoFormat();
@@ -192,7 +205,6 @@ async function proxyM3U8({ query, headers: { host } }: M3U8QueryArgs) {
     })
     .join("\n");
 
-  response.headers.delete("Access-Control-Allow-Origin");
   return new Response(modifiedM3u8 ?? response.body, {
     status: response.status,
     headers: response.headers,
