@@ -21,7 +21,7 @@
     "eslint": "^9.26.0",
     "eslint-plugin-oxlint": "^0.16.10",
     "husky": "^9.1.7",
-    "oxlint": "^0.16.10",
+    "oxlint": "^1.1.0",
     "typescript-eslint": "^8.32.1"
   },
   "module": "src/index.js",
