@@ -41,5 +41,17 @@ export default new Elysia({
           summary: "Proxying a .m3u8 stream",
         },
       },
+    )
+    .get(
+      "/video.ts",
+      ({ query, headers }) => {
+        return ProxyService.proxyM3U8(query, headers);
+      },
+      {
+        query: ProxyModel.getM3U8Query,
+        detail: {
+          summary: "Proxying a .ts segment",
+        },
+      },
     ),
 );

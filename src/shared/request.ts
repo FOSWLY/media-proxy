@@ -6,6 +6,9 @@ const REMOVABLE_HEADERS = [
   "access-control-allow-credentials",
   "access-control-allow-methods",
   "date",
+  "content-encoding",
+  "content-length",
+  "transfer-encoding",
 ] as const;
 
 export function clearHeaders(headers: Headers) {

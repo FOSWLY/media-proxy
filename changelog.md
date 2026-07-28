@@ -2,7 +2,10 @@
 
 ## Server
 
+- Added alias `/v1/proxy/video.ts` for proxying `.ts` / `.m3u8` segments
 - Removed validate header `content-type` for m3u8 proxy response
+- Removed source `content-encoding`, `content-length`, `transfer-encoding` headers from proxy response
+- Fixed playing `m3u8` with `all` param on some players (like `VLC`)
 - Fixed inconsistent config naming (camelCase vs snake_case)
 - Bump depends
 

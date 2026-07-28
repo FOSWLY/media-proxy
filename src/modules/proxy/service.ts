@@ -7,6 +7,7 @@ import config from "@/shared/config";
 
 export abstract class ProxyService {
   static M3U8_PREFIX = "/v1/proxy/m3u8";
+  static TS_PREFIX = "/v1/proxy/video.ts";
   static SCHEMA = config.server.isSupportHttps ? "https://" : "http://";
 
   static async proxyVideo(fileRegex: RegExp, query: VideoProxyOpts) {
@@ -42,7 +43,6 @@ export abstract class ProxyService {
     query: M3U8ProxyOpts,
     { host }: Record<string, string | undefined>,
   ) {
-    // eslint-disable-next-line prefer-const
     let { referer, origin, url } = fixQueryArgs(query, true);
     const { all } = query;
 
@@ -51,17 +51,19 @@ export abstract class ProxyService {
     }
 
     const mediaUrl = new URL(url);
-    if (
-      !mediaUrl.pathname.endsWith(".m3u8") &&
-      !mediaUrl.pathname.endsWith(".ts")
-    ) {
+    const isTsFile = mediaUrl.pathname.endsWith(".ts");
+    if (!mediaUrl.pathname.endsWith(".m3u8") && !isTsFile) {
       throw new UnknownVideoFormat();
     }
 
     const response = await fetchMedia(mediaUrl, referer, origin);
     const responseHeaders = clearHeaders(response.headers);
-
-    if (mediaUrl.pathname.endsWith(".ts")) {
+    responseHeaders.delete("content-type");
+    responseHeaders.set(
+      "content-type",
+      isTsFile ? "video/mp2t" : "application/vnd.apple.mpegurl",
+    );
+    if (isTsFile) {
       return new Response(response.body, {
         status: response.status,
         headers: responseHeaders,
@@ -73,18 +75,21 @@ export abstract class ProxyService {
     modifiedM3u8 = modifiedM3u8
       .split("\n")
       .map((line) => {
-        if (line.startsWith("#") || line.trim() == "") {
+        const trimmedLine = line.trim();
+        if (trimmedLine.startsWith("#") || trimmedLine === "") {
           return line;
         }
 
-        if (all && line.startsWith("http")) {
+        const isTsLink = trimmedLine.endsWith(".ts");
+        const prefix = isTsLink ? this.TS_PREFIX : this.M3U8_PREFIX;
+        if (all && trimmedLine.startsWith("http")) {
           // https://yourproxy.com/?url=https://somevideo.m3u8&all=yes
-          return `${this.SCHEMA}${host}${this.M3U8_PREFIX}?url=${line}`;
+          return `${this.SCHEMA}${host}${prefix}?url=${trimmedLine}`;
         }
 
         // autoencodes all fields
         const params = new URLSearchParams({
-          url: `${targetFilename}${line}`,
+          url: `${targetFilename}${trimmedLine}`,
         });
         if (origin) {
           params.append("origin", origin);
@@ -96,11 +101,11 @@ export abstract class ProxyService {
           params.append("all", all);
         }
 
-        return `${this.M3U8_PREFIX}?${params.toString()}`;
+        return `${prefix}?${params.toString()}`;
       })
       .join("\n");
 
-    return new Response(modifiedM3u8 ?? response.body, {
+    return new Response(modifiedM3u8, {
       status: response.status,
       headers: responseHeaders,
     });
