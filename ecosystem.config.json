@@ -1,9 +1,0 @@
-{
-  "apps": [
-    {
-      "name": "media-proxy",
-      "script": "bun",
-      "args": "run start"
-    }
-  ]
-}
