@@ -1,4 +1,4 @@
-import config from "@/config";
+import config from "@/shared/config";
 import { PinoClient } from "@vaylo/pino";
 
 const { loki, level, logPath, logToFile } = config.logging;

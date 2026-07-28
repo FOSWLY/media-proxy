@@ -3,34 +3,42 @@ import { HttpStatusCode } from "elysia-http-status-code";
 import { swagger } from "@elysiajs/swagger";
 import { cors } from "@elysiajs/cors";
 
-import config from "./config";
+import config from "@/shared/config";
 
-import healthController from "./controllers/health";
-import proxyController from "./controllers/proxy";
+import healthController from "./modules/health";
+import proxyController from "./modules/proxy";
 import { log } from "./logging";
-import { InvalidMediaFile, UnknownVideoFormat } from "./errors";
+import { InvalidMediaFile, UnknownVideoFormat } from "@/modules/proxy/error";
 
-const app = new Elysia({ prefix: "/v1" })
+const {
+  server: { hostname, port },
+  app: {
+    name: title,
+    desc: description,
+    version,
+    license,
+    githubUrl,
+    contactEmail,
+  },
+} = config;
+
+export const app = new Elysia({ prefix: "/v1" })
   .use(
     swagger({
       path: "/docs",
       excludeStaticFile: false,
-      scalarConfig: {
-        spec: {
-          url: "/v1/docs/json",
-        },
-      },
       documentation: {
         info: {
-          title: config.app.name,
-          version: config.app.version,
+          title,
+          description,
+          version,
           license: {
-            name: config.app.license,
+            name: license,
           },
           contact: {
             name: "Developer",
-            url: config.app.github_url,
-            email: config.app.contact_email,
+            url: githubUrl,
+            email: contactEmail,
           },
         },
       },
@@ -63,8 +71,8 @@ const app = new Elysia({ prefix: "/v1" })
   .use(healthController)
   .use(proxyController)
   .listen({
-    port: config.server.port,
-    hostname: config.server.hostname,
+    port,
+    hostname,
   });
 
 log.info(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
