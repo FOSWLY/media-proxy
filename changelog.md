@@ -1,3 +1,7 @@
+# 1.1.6
+
+- Using base64 format for proxying nested links in m3u8/ts
+
 # 1.1.5
 
 ## Server
