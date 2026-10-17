@@ -1,3 +1,7 @@
+# 1.1.8
+
+- [!] Migrated config to `@nirelc/microconf` lib
+
 # 1.1.7
 
 - Fixed set empty string for `Origin` and `Referer` headers if they aren't provided
