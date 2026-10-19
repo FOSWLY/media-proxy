@@ -5,12 +5,18 @@ import { fetchMedia, fixQueryArgs } from "./utils";
 import { log } from "@/logging";
 import config from "@/shared/config";
 
+const GENERIC_MEDIA_TYPES = ["application/octet-stream", "binary/octet-stream"];
+
 export abstract class ProxyService {
   static M3U8_PREFIX = "/v1/proxy/m3u8";
   static TS_PREFIX = "/v1/proxy/video.ts";
   static SCHEMA = config.server.isSupportHttps ? "https://" : "http://";
 
-  static async proxyVideo(fileRegex: RegExp, query: VideoProxyOpts) {
+  static async proxyVideo(
+    fileRegex: RegExp,
+    contentType: string,
+    query: VideoProxyOpts,
+  ) {
     const { referer, origin, url, force, headers } = fixQueryArgs(query);
     if (!URL.canParse(url)) {
       throw new InvalidMediaFile("unsupported URL");
@@ -21,7 +27,14 @@ export abstract class ProxyService {
     }
 
     const response = await fetchMedia(new URL(url), referer, origin, headers);
-    if (!response.headers.get("Content-Type")?.includes("video/")) {
+    const responseType = (
+      response.headers.get("Content-Type") ?? ""
+    ).toLowerCase();
+    // some hosts serve video as a generic binary type
+    const isGenericType = GENERIC_MEDIA_TYPES.some((type) =>
+      responseType.startsWith(type),
+    );
+    if (!responseType.includes("video/") && !isGenericType) {
       log.warn(
         {
           url,
@@ -33,9 +46,14 @@ export abstract class ProxyService {
       throw new UnknownVideoFormat();
     }
 
+    const responseHeaders = clearHeaders(response.headers);
+    if (isGenericType) {
+      responseHeaders.set("content-type", contentType);
+    }
+
     return new Response(response.body, {
       status: response.status,
-      headers: clearHeaders(response.headers),
+      headers: responseHeaders,
     });
   }
 

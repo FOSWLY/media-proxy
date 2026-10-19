@@ -9,7 +9,7 @@ export default new Elysia({
     .get(
       "/video.mp4",
       async ({ query }) => {
-        return await ProxyService.proxyVideo(/\.mp4/, query);
+        return await ProxyService.proxyVideo(/\.mp4/, "video/mp4", query);
       },
       {
         query: ProxyModel.getMP4Query,
@@ -21,7 +21,7 @@ export default new Elysia({
     .get(
       "/video.webm",
       async ({ query }) => {
-        return await ProxyService.proxyVideo(/\.webm/, query);
+        return await ProxyService.proxyVideo(/\.webm/, "video/webm", query);
       },
       {
         query: ProxyModel.getWebmQuery,
